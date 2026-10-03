@@ -35,6 +35,20 @@ test('money formatting and parsing', () => {
   assert.ok(Number.isNaN(parseMoney('')));
 });
 
+test('ABN checksum', () => {
+  assert.equal(db_.validAbn('90 473 894 126'), true);
+  assert.equal(db_.validAbn('90 473 894 127'), false);
+  assert.equal(db_.validAbn('1234'), false);
+});
+
+test('new databases start with Hover Guy business details', () => {
+  const s = db_.getSettings(openDb(':memory:'));
+  assert.equal(s.address, '210a Fussell Street\nBallarat East VIC 3350');
+  assert.equal(s.abn, '90 473 894 126');
+  assert.equal(s.casa_arn, '1160738');
+  assert.equal(s.timezone, 'Australia/Melbourne');
+});
+
 test('totals match the sample invoice (AUD, 10% GST)', () => {
   assert.deepEqual(totals(lines, 0.1), { subtotal: 114680, tax: 11468, total: 126148 });
   assert.equal(totals([{ quantity: 1, unit_price: 1000, taxable: 0 }], 0.1).tax, 0);

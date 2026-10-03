@@ -54,10 +54,10 @@ function page({ title, docType, number, body, footerRight, s }) {
 </div></body></html>`;
 }
 
-function fromBlock(s, withAbn) {
+function fromBlock(s) {
   return partyBlock('From', s.business_name, [
     s.sender_name && esc(s.sender_name), lines(s.address),
-    withAbn && s.abn && `ABN ${esc(s.abn)}`, esc(s.email), esc(s.phone),
+    s.abn && `ABN ${esc(s.abn)}`, s.casa_arn && `CASA ARN ${esc(s.casa_arn)}`, esc(s.email), esc(s.phone),
   ]);
 }
 
@@ -75,7 +75,7 @@ export function renderInvoice(inv, s) {
   const body = `
     <section class="parties">
       ${clientBlock('Bill to', inv.client, true)}
-      ${fromBlock(s, true)}
+      ${fromBlock(s)}
       <div><span class="label">Details</span><table class="meta">
         ${metaRow('Issued', shortDate(inv.issued_on))}
         ${metaRow('Due', `<strong>${shortDate(inv.due_on)}</strong>`)}
@@ -108,7 +108,7 @@ export function renderQuote(q, s) {
   const body = `
     <section class="parties">
       ${clientBlock('Prepared for', q.client, false)}
-      ${fromBlock(s, false)}
+      ${fromBlock(s)}
       <div><span class="label">Details</span><table class="meta">
         ${metaRow('Issued', shortDate(q.issued_on))}
         ${metaRow('Valid to', `<strong>${shortDate(q.valid_until)}</strong>`)}

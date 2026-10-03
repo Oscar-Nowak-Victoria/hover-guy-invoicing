@@ -11,7 +11,22 @@ export function openDb(path = process.env.DB_PATH || join(here, '..', 'data', 'h
   const db = new DatabaseSync(path);
   db.exec('PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;');
   db.exec(readFileSync(join(here, 'schema.sql'), 'utf8'));
+  migrate(db);
   return db;
+}
+
+// Columns added after the first release. CREATE TABLE IF NOT EXISTS won't add them to an existing database.
+function migrate(db) {
+  const has = new Set(db.prepare('PRAGMA table_info(settings)').all().map((c) => c.name));
+  if (!has.has('casa_arn')) db.exec(`ALTER TABLE settings ADD COLUMN casa_arn TEXT NOT NULL DEFAULT ''`);
+}
+
+// Checks an ABN with the ATO's published checksum (11 digits, weighted sum divisible by 89).
+export function validAbn(abn) {
+  const d = String(abn).replace(/\s/g, '');
+  if (!/^\d{11}$/.test(d)) return false;
+  const w = [10, 1, 3, 5, 7, 9, 11, 13, 15, 17, 19];
+  return [...d].reduce((sum, c, i) => sum + (Number(c) - (i === 0 ? 1 : 0)) * w[i], 0) % 89 === 0;
 }
 
 export const getSettings = (db) => db.prepare('SELECT * FROM settings WHERE id = 1').get();

@@ -30,9 +30,16 @@ npm test         # tests: totals, numbering, payments, reminder rules, sending
 npm run reminders  # run today's reminders once (if you'd rather use cron than the built-in daily run)
 ```
 
-## Put it online
+## Put it online (Railway)
 
-Use the Dockerfile with any host that offers a persistent disk (Railway, Fly.io or Render, for example). Mount the disk at `/app/data`, because that's where the database lives, and set `ADMIN_PASSWORD`. Without a password, the app only listens on the computer it's running on.
+The repo includes `railway.json` and a `Dockerfile`, so Railway builds it without any extra setup.
+
+1. In Railway, choose **New Project → Deploy from GitHub repo** and pick this repo.
+2. In the service, add a **Volume** mounted at `/app/data`. This holds the database and the outbox, and it keeps your data across deploys.
+3. Under **Variables**, add `ADMIN_PASSWORD`. The app won't start without it once it's online.
+4. Under **Settings → Networking**, choose **Generate Domain**. Sign in with any username and your password.
+
+Keep it to one replica. The database is a single SQLite file on the volume.
 
 ## Go live
 

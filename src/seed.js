@@ -19,7 +19,7 @@ if (!listRates(db, true).length) {
 if (!listClients(db).length) {
   saveClient(db, {
     company: 'Example Operator Pty Ltd', contact_name: 'Sam Example', email: 'sam@example.com',
-    accounts_email: 'accounts@example.com', address: '1 Example Street\nBrisbane QLD 4000',
+    accounts_email: 'accounts@example.com', address: '1 Example Street\nBallarat VIC 3350',
     notes: 'Example client. Delete or edit me.',
   });
   console.log('Added an example client.');

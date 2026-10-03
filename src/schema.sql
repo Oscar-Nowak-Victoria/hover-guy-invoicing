@@ -4,8 +4,9 @@ CREATE TABLE IF NOT EXISTS settings (
   id                   INTEGER PRIMARY KEY CHECK (id = 1),
   business_name        TEXT NOT NULL DEFAULT 'Hover Guy',
   sender_name          TEXT NOT NULL DEFAULT 'Oscar',
-  address              TEXT NOT NULL DEFAULT '',
-  abn                  TEXT NOT NULL DEFAULT '',
+  address              TEXT NOT NULL DEFAULT ('210a Fussell Street' || char(10) || 'Ballarat East VIC 3350'),
+  abn                  TEXT NOT NULL DEFAULT '90 473 894 126',
+  casa_arn             TEXT NOT NULL DEFAULT '1160738',          -- CASA Aviation Reference Number
   email                TEXT NOT NULL DEFAULT '',        -- the accounts address invoices are sent from
   phone                TEXT NOT NULL DEFAULT '',
   currency             TEXT NOT NULL DEFAULT 'AUD',
@@ -20,7 +21,7 @@ CREATE TABLE IF NOT EXISTS settings (
   quote_terms          TEXT NOT NULL DEFAULT 'Valid for {days} days. Weather cancellations rebooked free. Client cancellation under 48 hours: 50% of crew fees. Invoice issued on completion.',
   quote_included       TEXT NOT NULL DEFAULT 'Flight plan, risk assessment, airspace checks and NOTAM review.',
   reminders_enabled    INTEGER NOT NULL DEFAULT 1,
-  timezone             TEXT NOT NULL DEFAULT 'Australia/Brisbane',
+  timezone             TEXT NOT NULL DEFAULT 'Australia/Melbourne',
   next_number          INTEGER NOT NULL DEFAULT 1        -- one HG-0000 sequence shared by quotes and invoices
 );
 INSERT OR IGNORE INTO settings (id) VALUES (1);

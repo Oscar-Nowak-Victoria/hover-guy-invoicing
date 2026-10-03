@@ -17,6 +17,10 @@ import { layout, esc, pill, cur, pageHead, postButton, field, area, checkbox, se
 const here = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || (process.env.ADMIN_PASSWORD ? '0.0.0.0' : '127.0.0.1');
+if (!process.env.ADMIN_PASSWORD && !['127.0.0.1', 'localhost', '::1'].includes(HOST)) {
+  console.error('Refusing to start: set ADMIN_PASSWORD before making the app reachable from other computers.');
+  process.exit(1);
+}
 const REMINDER_HOUR = Number(process.env.REMINDER_HOUR ?? 9);
 const db = D.openDb();
 
@@ -363,6 +367,7 @@ function settingsPage(url) {
       ${field('phone', 'Phone', s.phone)}
       ${area('address', 'Address', s.address)}
       ${field('abn', 'ABN', s.abn, { placeholder: '00 000 000 000' })}
+      ${field('casa_arn', 'CASA ARN', s.casa_arn, { hint: 'Your Aviation Reference Number. Shown on quotes and invoices.' })}
     </div>
     <div class="card"><h2>Bank transfer</h2>
       ${field('bank_account_name', 'Account name', s.bank_account_name)}
@@ -544,9 +549,10 @@ route('GET', '/emails/:id', ({ p }) => layout({ title: 'Email', active: '/emails
 route('GET', '/settings', ({ url }) => settingsPage(url));
 route('POST', '/settings', async ({ req, res }) => {
   const f = await readForm(req);
-  const keys = ['business_name', 'sender_name', 'email', 'phone', 'address', 'abn', 'bank_account_name', 'bank_bsb', 'bank_account_number', 'currency', 'tax_label', 'timezone', 'invoice_terms', 'quote_terms', 'quote_included'];
+  const keys = ['business_name', 'sender_name', 'email', 'phone', 'address', 'abn', 'casa_arn', 'bank_account_name', 'bank_bsb', 'bank_account_number', 'currency', 'tax_label', 'timezone', 'invoice_terms', 'quote_terms', 'quote_included'];
   const v = Object.fromEntries(keys.map((k) => [k, str(f, k)]));
-  try { new Intl.DateTimeFormat('en', { timeZone: v.timezone }); } catch { throw new HttpError(400, `Unknown timezone "${v.timezone}". Try Australia/Brisbane or Australia/Sydney.`); }
+  if (v.abn && !D.validAbn(v.abn)) throw new HttpError(400, `ABN "${v.abn}" doesn't pass the ATO check. Please re-check the 11 digits.`);
+  try { new Intl.DateTimeFormat('en', { timeZone: v.timezone }); } catch { throw new HttpError(400, `Unknown timezone "${v.timezone}". Try Australia/Melbourne.`); }
   v.tax_rate = (parseFloat(f.get('tax_rate_pct')) || 0) / 100;
   v.payment_terms_days = parseInt(f.get('payment_terms_days'), 10) || 14;
   v.quote_valid_days = parseInt(f.get('quote_valid_days'), 10) || 30;
@@ -564,6 +570,7 @@ route('POST', '/reminders/run', async ({ res }) => {
 
 async function handle(req, res) {
   const url = new URL(req.url, 'http://localhost');
+  if (req.method === 'GET' && url.pathname === '/healthz') { res.writeHead(200, { 'Content-Type': 'text/plain' }).end('ok'); return; }
   if (req.method === 'GET' && /^\/(brand\/[\w.-]+|app\.css)$/.test(url.pathname) && serveStatic(res, url.pathname)) return;
   if (!authorised(req)) {
     res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="Hover Guy invoicing"' }).end('Sign in required');

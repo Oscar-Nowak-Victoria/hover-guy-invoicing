@@ -1,6 +1,6 @@
 FROM node:22-bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends chromium fonts-dejavu-core && rm -rf /var/lib/apt/lists/*
-ENV CHROMIUM_PATH=/usr/bin/chromium NODE_ENV=production HOST=0.0.0.0 PORT=3000
+ENV CHROMIUM_PATH=/usr/bin/chromium NODE_ENV=production HOST=0.0.0.0 PORT=3000 TZ=Australia/Melbourne
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev
