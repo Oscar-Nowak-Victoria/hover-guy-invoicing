@@ -17,7 +17,7 @@ body {
   font: 400 10pt/1.45 'IBM Plex Sans', Arial, sans-serif;
   font-variant-numeric: tabular-nums;
 }
-.page { width: 210mm; min-height: 297mm; display: flex; flex-direction: column; }
+.page { width: 210mm; max-width: 100%; min-height: 297mm; display: flex; flex-direction: column; }
 
 .bar {
   background: var(--navy);
@@ -76,4 +76,15 @@ table.lines { width: 100%; border-collapse: collapse; }
 footer {
   margin: 10mm 16mm 10mm; padding-top: 4mm; border-top: 1px solid var(--haze);
   display: flex; justify-content: space-between; color: var(--steel); font-size: 8pt;
+}
+
+/* Narrow screens (phone preview). Print and PDF always use the A4 layout above. */
+@media screen and (max-width: 700px) {
+  .page { min-height: 0; }
+  .bar { padding: 6mm; }
+  .bar img { height: 10mm; }
+  main { padding: 8mm 6mm 0; }
+  .parties, .panels { grid-template-columns: 1fr; }
+  .totals { width: 100%; }
+  footer { margin: 8mm 6mm; flex-direction: column; gap: 2mm; }
 }

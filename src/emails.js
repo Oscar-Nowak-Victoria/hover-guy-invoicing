@@ -73,7 +73,7 @@ export function invoiceEmail(inv, s) {
     ...compose(s, {
       paragraphs: [
         `Hi ${firstName(c)},`,
-        `Invoice ${inv.number} for ${amount(s, inv.balance)} is attached${inv.title ? ` for ${inv.title.charAt(0).toLowerCase()}${inv.title.slice(1)}` : ''}. Payment is due on ${longDate(inv.due_on)}.`,
+        `Invoice ${inv.number} for ${amount(s, inv.balance)} is attached${inv.title ? ` (${inv.title})` : ''}. Payment is due on ${longDate(inv.due_on)}.`,
       ],
       payment: paymentLines(s, inv.number),
     }),
