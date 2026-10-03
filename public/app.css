@@ -96,3 +96,6 @@ dl.kv { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; ma
 dl.kv dt { color: var(--steel); }
 dl.kv dd { margin: 0; }
 .empty { color: var(--steel); padding: 12px 0; }
+.abr { background: var(--haze); border-radius: 4px; padding: 14px 16px; margin-bottom: 18px; }
+.abr input { background: var(--white); }
+.abrhit { background: var(--white); border: 1px solid var(--line); border-radius: 4px; padding: 12px 14px; }

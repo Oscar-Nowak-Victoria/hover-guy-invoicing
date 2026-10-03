@@ -4,6 +4,7 @@ Quotes, invoices and automatic payment reminders for Hover Guy, in the Flight De
 
 - **Quotes**: build from the rate card, email as a branded PDF, and turn into an invoice in one click when accepted.
 - **Invoices**: Australian tax invoices with ABN, GST and bank transfer details. Each one is emailed from the accounts address with the PDF attached and a copy to the accounts mailbox.
+- **Clients**: search the Australian Business Register by name or ABN to fill in the company name and ABN, see whether they're registered for GST, and catch typos with the ATO's ABN check. Needs `ABR_GUID`.
 - **Payments**: record bank transfers as they arrive. Part payments are supported, and paying in full stops the reminders.
 - **Reminders**: sent automatically 3 days before the due date, on the due date, and at 7, 14 and 30 days overdue. Only one email goes out per run, so a client never gets a burst. After the 30-day final notice the invoice is flagged on the dashboard for you to chase personally. You can pause reminders for one invoice (disputed, or a payment date promised) or switch them off for a client.
 

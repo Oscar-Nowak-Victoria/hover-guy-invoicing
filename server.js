@@ -9,6 +9,7 @@ import { renderQuote, renderInvoice } from './src/render.js';
 import { quoteEmail, invoiceEmail, REMINDER_STEPS } from './src/emails.js';
 import { sendQuote, sendInvoice, runReminders, invoicePdf } from './src/actions.js';
 import { htmlToPdf } from './src/pdf.js';
+import { abrConfigured, lookupAbn, searchNames } from './src/abr.js';
 import { sendMode } from './src/mailer.js';
 import { money, parseMoney } from './src/money.js';
 import { today, shortDate, addDays, daysBetween } from './src/dates.js';
@@ -53,6 +54,15 @@ const intOrNull = (v) => (v === '' || v == null ? null : parseInt(v, 10));
 function redirect(res, to, flash) {
   const url = flash ? `${to}${to.includes('?') ? '&' : '?'}${flash.err ? 'err' : 'ok'}=${encodeURIComponent(flash.msg)}` : to;
   res.writeHead(303, { Location: url }).end();
+}
+
+async function json(res, fn) {
+  try {
+    const body = JSON.stringify(await fn());
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(body);
+  } catch (e) {
+    res.writeHead(502, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: e.name === 'TimeoutError' ? 'The ABR took too long to answer. Try again.' : e.message }));
+  }
 }
 
 function html(res, body, status = 200) {
@@ -132,8 +142,69 @@ function dashboard(url) {
 
 // ---------- clients
 
+function abrPanel() {
+  if (!abrConfigured()) return `<p class="muted" style="margin-top:0">ABR lookup isn't switched on. Add <span class="mono">ABR_GUID</span> in Railway Variables to fill client details from the Australian Business Register.</p>`;
+  return `<div class="abr">
+    <span class="label">Find on the Australian Business Register</span>
+    <div class="actions"><input id="abrq" placeholder="Business name or ABN" aria-label="Business name or ABN" style="flex:1;min-width:200px"><button type="button" id="abrgo">Search ABR</button></div>
+    <div id="abrout" style="margin-top:10px"></div>
+  </div>
+  <script>
+  (() => {
+    const q = document.getElementById('abrq'), out = document.getElementById('abrout');
+    const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const form = q.closest('form');
+    const set = (name, v) => { const el = form.elements[name]; if (el) el.value = v; };
+    async function get(url) {
+      const r = await fetch(url, { headers: { Accept: 'application/json' } });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Lookup failed');
+      return d;
+    }
+    function showDetails(d) {
+      const warn = [!d.active && '<span class="pill overdue">ABN ' + esc(d.status || 'not active') + '</span>', !d.gstRegistered && '<span class="pill">Not registered for GST</span>'].filter(Boolean).join(' ');
+      out.innerHTML = '<div class="abrhit"><strong>' + esc(d.entityName) + '</strong> ' + warn +
+        '<div class="muted">ABN ' + esc(d.abn) + ' · ' + esc(d.entityType) + ' · ' + esc(d.state) + ' ' + esc(d.postcode) + '</div>' +
+        (d.businessNames.length ? '<div class="muted">Trading as: ' + d.businessNames.map(esc).join(', ') + '</div>' : '') +
+        '<button type="button" class="small primary" id="abruse" style="margin-top:8px">Use these details</button></div>';
+      document.getElementById('abruse').onclick = () => {
+        set('company', d.entityName);
+        set('abn', d.abn);
+        const addr = form.elements.address;
+        if (addr && !addr.value.trim()) addr.value = (d.state + ' ' + d.postcode).trim();
+        const notes = form.elements.notes;
+        if (notes && d.businessNames.length && !notes.value.includes('Trading as')) notes.value = ('Trading as: ' + d.businessNames.join(', ') + '\\n' + notes.value).trim();
+        out.innerHTML = '<p class="muted">Filled in from the ABR. The register only lists state and postcode, so add the street address.</p>';
+        form.elements.contact_name?.focus();
+      };
+    }
+    async function search() {
+      const term = q.value.trim();
+      if (!term) return;
+      out.innerHTML = '<p class="muted">Searching…</p>';
+      try {
+        const digits = term.replace(/\\D/g, '');
+        if (digits.length === 11 && /^[\\d\\s]+$/.test(term)) return showDetails(await get('/abr/abn?abn=' + digits));
+        const list = await get('/abr/search?name=' + encodeURIComponent(term));
+        if (!list.length) { out.innerHTML = '<p class="muted">No matches. Try fewer words or the ABN.</p>'; return; }
+        out.innerHTML = '<table class="list"><tbody>' + list.map((n, i) =>
+          '<tr><td><a href="#" data-i="' + i + '">' + esc(n.name) + '</a><br><small class="muted">' + esc(n.nameType) + (n.current ? '' : ' (old name)') + '</small></td><td class="mono">' + esc(n.abn) + '</td><td>' + esc(n.state) + ' ' + esc(n.postcode) + '</td></tr>').join('') + '</tbody></table>';
+        out.querySelectorAll('a[data-i]').forEach((a) => a.onclick = async (e) => {
+          e.preventDefault();
+          out.innerHTML = '<p class="muted">Loading…</p>';
+          try { showDetails(await get('/abr/abn?abn=' + list[a.dataset.i].abn.replace(/\\s/g, ''))); } catch (err) { out.innerHTML = '<p class="notice err">' + esc(err.message) + '</p>'; }
+        });
+      } catch (err) { out.innerHTML = '<p class="notice err">' + esc(err.message) + '</p>'; }
+    }
+    document.getElementById('abrgo').onclick = search;
+    q.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); search(); } });
+  })();
+  </script>`;
+}
+
 function clientForm(c = {}) {
   return `<form method="post" class="card">
+    ${abrPanel()}
     <div class="row2">${field('company', 'Company', c.company, { required: true })}${field('contact_name', 'Contact name', c.contact_name)}</div>
     <div class="row2">${field('email', 'Email (quotes)', c.email, { type: 'email', required: true })}${field('accounts_email', 'Accounts email (invoices and reminders)', c.accounts_email, { type: 'email', hint: 'Leave blank to use the main email.' })}</div>
     <div class="row2">${area('address', 'Address', c.address)}<div>${field('abn', 'ABN', c.abn)}${field('payment_terms_days', 'Payment terms (days)', c.payment_terms_days ?? '', { type: 'number', hint: `Blank uses the default (${settings().payment_terms_days} days).` })}</div></div>
@@ -144,6 +215,8 @@ function clientForm(c = {}) {
 }
 
 function clientFromForm(f) {
+  const abn = str(f, 'abn');
+  if (abn && !D.validAbn(abn)) throw new HttpError(400, `ABN "${abn}" doesn't pass the ATO check. Please re-check the 11 digits.`);
   return {
     company: str(f, 'company'), contact_name: str(f, 'contact_name'), email: str(f, 'email'),
     accounts_email: str(f, 'accounts_email'), address: str(f, 'address'), abn: str(f, 'abn'),
@@ -409,6 +482,8 @@ route('GET', '/', ({ url }) => dashboard(url));
 
 route('GET', '/clients', ({ url }) => clientsPage(url));
 route('GET', '/clients/new', () => layout({ title: 'New client', active: '/clients', body: pageHead('New client') + clientForm() }));
+route('GET', '/abr/abn', async ({ res, url }) => json(res, async () => lookupAbn(url.searchParams.get('abn') ?? '')));
+route('GET', '/abr/search', async ({ res, url }) => json(res, async () => searchNames(url.searchParams.get('name') ?? '')));
 route('POST', '/clients/new', async ({ req, res }) => {
   const id = D.saveClient(db, clientFromForm(await readForm(req)));
   redirect(res, `/clients/${id}`, { msg: 'Client added.' });
