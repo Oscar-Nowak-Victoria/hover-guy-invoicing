@@ -121,3 +121,17 @@ export function reminderEmail(inv, s, step, todayIso) {
     ...compose(s, { paragraphs: [`Hi ${firstName(c)},`, ...copy.body], payment: paymentLines(s, inv.number) }),
   };
 }
+
+// Sent only to the accounts address, to prove the mailbox connection works.
+export function testEmail(s) {
+  return {
+    kind: 'test',
+    subject: `Test email from ${s.business_name} invoicing`,
+    ...compose(s, {
+      paragraphs: [
+        'This is a test from your invoicing app.',
+        `If you can read this, ${s.email} is connected. Quotes, invoices and reminders will arrive looking like this, with the PDF attached.`,
+      ],
+    }),
+  };
+}

@@ -6,11 +6,11 @@ import { fileURLToPath } from 'node:url';
 import { timingSafeEqual } from 'node:crypto';
 import * as D from './src/db.js';
 import { renderQuote, renderInvoice } from './src/render.js';
-import { quoteEmail, invoiceEmail, REMINDER_STEPS } from './src/emails.js';
+import { quoteEmail, invoiceEmail, testEmail, REMINDER_STEPS } from './src/emails.js';
 import { sendQuote, sendInvoice, runReminders, invoicePdf } from './src/actions.js';
 import { htmlToPdf } from './src/pdf.js';
 import { abrConfigured, lookupAbn, searchNames } from './src/abr.js';
-import { sendMode } from './src/mailer.js';
+import { sendMode, isLive, liveMethod, sendTestToSelf } from './src/mailer.js';
 import { money, parseMoney } from './src/money.js';
 import { today, shortDate, addDays, daysBetween } from './src/dates.js';
 import { layout, esc, pill, cur, pageHead, postButton, field, area, checkbox, select, itemsEditor } from './src/ui.js';
@@ -294,7 +294,7 @@ function docFromForm(kind, f) {
 }
 
 function sendPreview(kind, d, msg, s) {
-  const live = sendMode() === 'smtp';
+  const live = isLive();
   const body = `${pageHead(`Send ${kind} <span class="mono">${esc(d.number)}</span>`, esc(d.client.company))}
   <div class="card">
     <dl class="kv" style="margin-bottom:16px">
@@ -403,9 +403,9 @@ function invoicePage(id, url) {
 
 function emailsPage(url) {
   const es = D.listEmails(db, 200);
-  const body = `${pageHead('Emails', sendMode() === 'smtp' ? 'Everything sent from the app.' : 'Test mode: these were saved here instead of being sent.')}
+  const body = `${pageHead('Emails', isLive() ? 'Everything sent from the app.' : 'Test mode: these were saved here instead of being sent.')}
   <div class="card scroll">${es.length ? `<table class="list"><thead><tr><th>When</th><th>To</th><th>Subject</th><th>Mode</th></tr></thead><tbody>
-  ${es.map((e) => `<tr><td>${esc(e.created_at.slice(0, 16))} <span class="muted">UTC</span></td><td>${esc(e.to_address)}</td><td>${e.file ? `<a href="/emails/${e.id}">${esc(e.subject)}</a>` : esc(e.subject)}</td><td>${pill(e.mode === 'smtp' ? 'sent' : 'outbox')}</td></tr>`).join('')}
+  ${es.map((e) => `<tr><td>${esc(e.created_at.slice(0, 16))} <span class="muted">UTC</span></td><td>${esc(e.to_address)}</td><td>${e.file ? `<a href="/emails/${e.id}">${esc(e.subject)}</a>` : esc(e.subject)}</td><td>${pill(e.mode !== 'outbox' ? 'sent' : 'outbox')}</td></tr>`).join('')}
   </tbody></table>` : '<p class="empty">No emails yet.</p>'}</div>`;
   return layout({ title: 'Emails', active: '/emails', body, flash: flashFrom(url) });
 }
@@ -425,6 +425,20 @@ function textPart(raw) {
     return m[2].replace(/=\n/g, '').replace(/=([0-9A-F]{2})/g, (_, h) => String.fromCharCode(parseInt(h, 16)));
   }
   return m[2];
+}
+
+function emailConnectionCard(s) {
+  const method = liveMethod();
+  const label = { microsoft: 'Microsoft 365', smtp: 'SMTP' }[method];
+  const state = isLive()
+    ? `<p><span class="pill paid">Live</span> Emails go to clients through ${esc({ microsoft: 'Microsoft 365', smtp: 'SMTP' }[sendMode()])} from <strong>${esc(s.email || 'no address set')}</strong>.</p>`
+    : method
+      ? `<p><span class="pill sent">Connected, test mode</span> ${label} is set up but clients get nothing until <span class="mono">SEND_MODE</span> is set to <span class="mono">${method}</span> in Railway. Send yourself a test first.</p>`
+      : `<p><span class="pill">Not connected</span> Add the Microsoft 365 variables in Railway (<span class="mono">MS_TENANT_ID</span>, <span class="mono">MS_CLIENT_ID</span>, <span class="mono">MS_CLIENT_SECRET</span>) to connect your mailbox.</p>`;
+  return `<div class="card"><h2>Email connection</h2>${state}
+    ${method ? `<div class="actions">${postButton('/settings/test-email', `Send a test email to ${esc(s.email || 'my accounts address')}`, 'primary')}</div>
+    <p class="muted" style="font-size:13px;margin-bottom:0">The test goes only to your own accounts address, never to a client.</p>` : ''}
+  </div>`;
 }
 
 function settingsPage(url) {
@@ -459,6 +473,7 @@ function settingsPage(url) {
     <div class="actions"><button class="primary">Save settings</button><span class="muted">Next number: <span class="mono">${D.formatNumber(s.next_number)}</span></span></div>
   </div>
   </form>
+  ${emailConnectionCard(s)}
   <div class="card scroll"><h2>Rate card</h2>
     <table class="list"><thead><tr><th>Item</th><th>Detail</th><th>Unit</th><th class="num">Rate ex ${esc(s.tax_label)}</th><th>Active</th><th></th></tr></thead><tbody>
     ${rates.map((r) => `<tr>
@@ -530,7 +545,7 @@ route('GET', '/quotes/:id/send', ({ p }) => {
 });
 route('POST', '/quotes/:id/send', async ({ p, res }) => {
   const r = await sendQuote(db, +p.id);
-  redirect(res, `/quotes/${p.id}`, { msg: r.mode === 'smtp' ? 'Quote emailed.' : 'Test mode: quote email saved to the Emails page.' });
+  redirect(res, `/quotes/${p.id}`, { msg: r.mode !== 'outbox' ? 'Quote emailed.' : 'Test mode: quote email saved to the Emails page.' });
 });
 route('POST', '/quotes/:id/invoice', ({ p, res }) => {
   D.getQuote(db, +p.id) ?? notFound();
@@ -582,7 +597,7 @@ route('GET', '/invoices/:id/send', ({ p }) => {
 });
 route('POST', '/invoices/:id/send', async ({ p, res }) => {
   const r = await sendInvoice(db, +p.id);
-  redirect(res, `/invoices/${p.id}`, { msg: r.mode === 'smtp' ? 'Invoice emailed. Reminders are now scheduled.' : 'Test mode: invoice email saved to the Emails page. Reminders are now scheduled.' });
+  redirect(res, `/invoices/${p.id}`, { msg: r.mode !== 'outbox' ? 'Invoice emailed. Reminders are now scheduled.' : 'Test mode: invoice email saved to the Emails page. Reminders are now scheduled.' });
 });
 route('POST', '/invoices/:id/payments', async ({ req, res, p }) => {
   const inv = D.getInvoice(db, +p.id) ?? notFound();
@@ -638,6 +653,16 @@ route('POST', '/settings', async ({ req, res }) => {
 const rateFromForm = (f) => ({ name: str(f, 'name'), detail: str(f, 'detail'), unit: str(f, 'unit'), unit_price: parseMoney(f.get('unit_price')) || 0, active: f.get('active') ? 1 : 0 });
 route('POST', '/rates/new', async ({ req, res }) => { D.saveRate(db, rateFromForm(await readForm(req))); redirect(res, '/settings', { msg: 'Rate added.' }); });
 route('POST', '/rates/:id', async ({ req, res, p }) => { D.saveRate(db, rateFromForm(await readForm(req)), +p.id); redirect(res, '/settings', { msg: 'Rate saved.' }); });
+route('POST', '/settings/test-email', async ({ res }) => {
+  const s = settings();
+  const msg = testEmail(s);
+  try {
+    const r = await sendTestToSelf(db, s, msg);
+    redirect(res, '/settings', { msg: `Test email sent to ${s.email} through ${r.mode === 'microsoft' ? 'Microsoft 365' : 'SMTP'}. Check your inbox.` });
+  } catch (e) {
+    redirect(res, '/settings', { msg: e.message, err: true });
+  }
+});
 route('POST', '/reminders/run', async ({ res }) => {
   const r = await runReminders(db);
   redirect(res, '/', { msg: `Reminders checked: ${r.sent.length} sent, ${r.skipped.length} skipped${r.failed.length ? `, ${r.failed.length} failed (${r.failed[0].error})` : ''}.`, err: r.failed.length > 0 });
@@ -695,7 +720,7 @@ createServer((req, res) => {
   });
 }).listen(PORT, HOST, () => {
   console.log(`Hover Guy invoicing on http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}`);
-  console.log(sendMode() === 'smtp' ? 'LIVE: emails are sent via SMTP.' : 'Test mode: emails are saved to the outbox, not sent.');
+  console.log(isLive() ? `LIVE: emails are sent via ${sendMode()}.` : 'Test mode: emails are saved to the outbox, not sent.');
   if (!process.env.ADMIN_PASSWORD) console.log('No ADMIN_PASSWORD set, so the app only listens on this computer.');
   if (process.env.REMINDERS !== 'off') {
     reminderTick();

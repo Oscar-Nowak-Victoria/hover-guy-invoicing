@@ -10,7 +10,7 @@ Quotes, invoices and automatic payment reminders for Hover Guy, in the Flight De
 
 ## Safe by default
 
-Until `SEND_MODE=smtp` is set, **nothing is emailed**. Every quote, invoice and reminder is saved to the Emails page (and `data/outbox/*.eml`) so you can check it first.
+Until `SEND_MODE` is set to `microsoft` (or `smtp`), **nothing is emailed to clients**. Every quote, invoice and reminder is saved to the Emails page (and `data/outbox/*.eml`) so you can check it first.
 
 ## Run it
 
@@ -42,11 +42,22 @@ The repo includes `railway.json` and a `Dockerfile`, so Railway builds it withou
 
 Keep it to one replica. The database is a single SQLite file on the volume.
 
+## Connect Microsoft 365 (Office 365)
+
+Microsoft no longer accepts mailbox passwords for sending from apps, so the app sends with the Microsoft Graph API through an app registration.
+
+1. Sign in to [entra.microsoft.com](https://entra.microsoft.com) as an admin. Go to **Applications → App registrations → New registration**, name it `Hover Guy invoicing`, choose *this organizational directory only*, and click **Register**.
+2. Copy the **Application (client) ID** and **Directory (tenant) ID** from the overview page.
+3. Go to **API permissions → Add a permission → Microsoft Graph → Application permissions**, tick **Mail.Send** and add it. Then click **Grant admin consent**.
+4. Go to **Certificates & secrets → New client secret**, choose 24 months, and copy the **Value** straight away. It's only shown once.
+5. In Railway Variables, set `MS_TENANT_ID`, `MS_CLIENT_ID` and `MS_CLIENT_SECRET`. Leave `SEND_MODE` as `outbox`.
+6. In the app's **Settings**, make sure the accounts email is the exact Microsoft 365 mailbox, then click **Send a test email**. The test only goes to that address.
+
+The client secret expires, so put a reminder in your calendar to replace it before then.
+
 ## Go live
 
-1. Fill in Settings, then send yourself a test quote and invoice by using your own address as a client's email.
-2. Set the SMTP details for the accounts mailbox (see `.env.example`) and `SEND_MODE=smtp`.
-3. Restart. The banner turns green and says **Live**.
+Once the test email arrives, set `SEND_MODE` to `microsoft` in Railway. The banner turns green and says **Live**, and quotes, invoices and reminders go to clients from then on.
 
 ## Where things are
 

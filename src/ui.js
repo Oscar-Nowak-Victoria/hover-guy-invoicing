@@ -1,14 +1,14 @@
 // Shared layout and small components for the admin screens.
 import { esc } from './render.js';
 import { money } from './money.js';
-import { sendMode } from './mailer.js';
+import { isLive } from './mailer.js';
 
 export { esc };
 
 const NAV = [['/', 'Dashboard'], ['/quotes', 'Quotes'], ['/invoices', 'Invoices'], ['/clients', 'Clients'], ['/emails', 'Emails'], ['/settings', 'Settings']];
 
 export function layout({ title, active = '', body, flash }) {
-  const live = sendMode() === 'smtp';
+  const live = isLive();
   return `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(title)} · Hover Guy</title>
